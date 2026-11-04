@@ -1,7 +1,8 @@
 package ma.emsi.ayatijini.tp1.jsf;
 
 
-import ma.emsi.ayatijini.tp1.service.GenerateurReponse;
+import ma.emsi.ayatijini.tp1.llm.JsonAdapterPourGemini;
+import ma.emsi.ayatijini.tp1.llm.LlmInteraction;
 import jakarta.faces.application.FacesMessage;
 import jakarta.faces.context.FacesContext;
 import jakarta.faces.model.SelectItem;
@@ -11,6 +12,7 @@ import jakarta.inject.Named;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -44,7 +46,7 @@ public class Bb implements Serializable {
      */
     private String question;
     /**
-     * Dernière réponse de l'API OpenAI.
+     * Dernière réponse de l'API du LLM.
      */
     private String reponse;
     /**
@@ -53,10 +55,26 @@ public class Bb implements Serializable {
     private StringBuilder conversation = new StringBuilder();
 
     /**
-     * Service pour modifier la question et générer la réponse.
+     * Pour activer ou non l'affichage des textes JSON de la requête et de la réponse (mode "debug").
+     */
+    private boolean debug;
+
+    /**
+     * Pour afficher le texte JSON de la dernière requête envoyée à l'API du LLM (mode "debug").
+     */
+    private String texteRequeteJson;
+
+    /**
+     * Pour afficher le texte JSON de la dernière réponse reçue de l'API du LLM (mode "debug").
+     */
+    private String texteReponseJson;
+
+    /**
+     * Adapteur pour l'API de Gemini : prépare le JSON des requêtes, récupère celui des réponses
+     * et conserve l'historique de la conversation envoyé à chaque requête.
      */
     @Inject
-    private GenerateurReponse generateurReponse;
+    private JsonAdapterPourGemini jsonAdapter;
 
     /**
      * Contexte JSF. Utilisé pour qu'un message d'erreur s'affiche dans le formulaire.
@@ -103,6 +121,30 @@ public class Bb implements Serializable {
         this.reponse = reponse;
     }
 
+    public boolean isDebug() {
+        return debug;
+    }
+
+    public void setDebug(boolean debug) {
+        this.debug = debug;
+    }
+
+    public String getTexteRequeteJson() {
+        return texteRequeteJson;
+    }
+
+    public void setTexteRequeteJson(String texteRequeteJson) {
+        this.texteRequeteJson = texteRequeteJson;
+    }
+
+    public String getTexteReponseJson() {
+        return texteReponseJson;
+    }
+
+    public void setTexteReponseJson(String texteReponseJson) {
+        this.texteReponseJson = texteReponseJson;
+    }
+
     public String getConversation() {
         return conversation.toString();
     }
@@ -112,10 +154,8 @@ public class Bb implements Serializable {
     }
 
     /**
-     * Envoie la question au serveur.
-     * En attendant de l'envoyer à un LLM, le serveur fait un traitement quelconque, juste pour tester :
-     * Le traitement consiste à copier la question en minuscules et à l'entourer avec "||". Le rôle système
-     * est ajouté au début de la première réponse.
+     * Envoie la question au serveur, qui la transmet à l'API du LLM par l'intermédiaire de jsonAdapter.
+     * Le rôle système est transmis à jsonAdapter au début de la conversation.
      *
      * @return null pour rester sur la même page.
      */
@@ -128,14 +168,28 @@ public class Bb implements Serializable {
             return null;
         }
 
-        // Traite la question pour construire la réponse.
-        String roleSystemePourModification = null;
-        if (this.conversation.isEmpty()) { // Si la conversation n'a pas encore commencé
-            roleSystemePourModification = this.roleSysteme; // Pour GenerateurReponse.modifier()
+        // Si la conversation n'a pas encore commencé, indique le rôle système à jsonAdapter.
+        if (this.conversation.isEmpty()) {
+            this.jsonAdapter.setSystemRole(this.roleSysteme);
             // Fige la liste déroulante qui permet de choisir le rôle système
             this.roleSystemeChangeable = false;
         }
-        this.reponse += this.generateurReponse.genererReponse(this.question, roleSystemePourModification);
+
+        // Envoie la question à l'API du LLM et récupère la réponse (et les JSON échangés, pour le mode "debug").
+        try {
+            LlmInteraction interaction = jsonAdapter.envoyerRequete(question);
+            this.reponse = interaction.reponseExtraite();
+            this.texteRequeteJson = interaction.questionJson();
+            this.texteReponseJson = interaction.reponseJson();
+        } catch (Exception e) {
+            this.reponse = "Erreur : " + e.getMessage();
+            FacesMessage message =
+                    new FacesMessage(FacesMessage.SEVERITY_ERROR,
+                            "Problème de connexion avec l'API du LLM",
+                            "Problème de connexion avec l'API du LLM" + e.getMessage() + "\n"
+                                    + Arrays.toString(e.getStackTrace()));
+            facesContext.addMessage(null, message);
+        }
 
         // La conversation contient l'historique des questions-réponses depuis le début.
         afficherConversation();
@@ -188,6 +242,17 @@ public class Bb implements Serializable {
                     are you tell them the average price of a meal.
                     """;
             this.listeRolesSysteme.add(new SelectItem(role, "Guide touristique"));
+
+            // Rôle imaginé pour l'exercice bonus.
+            role = """
+                    Tu es Sam Barka, un détective privé désabusé de la médina de Casablanca, dans les années 1950.
+                    Tu réponds à toutes les questions comme si elles faisaient partie d'une enquête : tu parles à la
+                    première personne, sur un ton de film noir, avec des phrases courtes, une pointe d'ironie et
+                    quelques métaphores sur la pluie, le café et la brume de l'Atlantique.
+                    Malgré ce style, tes réponses restent exactes et utiles, et tu termines toujours par
+                    « Affaire classée. » suivi d'un indice (une courte suggestion pour aller plus loin).
+                    """;
+            this.listeRolesSysteme.add(new SelectItem(role, "Détective de Casablanca"));
         }
 
         return this.listeRolesSysteme;
