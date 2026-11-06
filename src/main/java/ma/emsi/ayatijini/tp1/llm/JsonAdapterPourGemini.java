@@ -212,8 +212,13 @@ public class JsonAdapterPourGemini implements Serializable {
                     .getJsonObject("content");
             // Ajoute l'objet JSON de la réponse de l'API au JSON de la prochaine requête
             this.requeteJson = this.pointer.add(this.requeteJson, messageReponse);
-            // Extrait seulement le texte de la réponse
-            return messageReponse.getJsonArray("parts").getJsonObject(0).getString("text");
+            // Extrait le texte de la réponse. Gemini peut découper sa réponse en plusieurs "parts" :
+            // il faut les concaténer toutes (sinon la réponse affichée est tronquée).
+            StringBuilder texte = new StringBuilder();
+            for (JsonValue part : messageReponse.getJsonArray("parts")) {
+                texte.append(part.asJsonObject().getString("text", ""));
+            }
+            return texte.toString();
         }
     }
 
