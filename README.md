@@ -86,6 +86,13 @@ années 1950**. Il répond à toutes les questions comme à une enquête (premi�
 courtes, ironie, métaphores sur la pluie, le café et la brume de l'Atlantique). Ses réponses restent exactes et il
 termine toujours par « Affaire classée. » suivi d'un indice pour aller plus loin.
 
+**Exemple avec ce rôle et une affaire entièrement fictive** (« un collectionneur de la médina a disparu un soir de
+pluie, ne laissant qu'une tasse de café encore chaude », puis « Et qui est ton principal suspect ? ») : le détective
+répond sur un ton de film noir, avec l'historique de la conversation à droite et le JSON en mode debug en dessous.
+L'affaire, les lieux et les personnages cités par le LLM sont inventés.
+
+![Rôle Détective de Casablanca](docs/rendu-role-detective.jpg)
+
 ## Erreurs provoquées volontairement (puis annulées avec Git)
 
 Ces deux modifications n'ont **pas** été commitées : le code est revenu à l'état du dernier commit avec
